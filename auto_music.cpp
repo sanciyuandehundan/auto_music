@@ -56,7 +56,7 @@ int main() {
 void read(string path) 
 {
     ifstream file(path, std::ios::binary); // 打开 MIDI 文件
-
+    
     file_name = path.substr(path.find_last_of("\\") + 1);//去除父文件夹路径
     file_name = file_name.substr(0, file_name.find_last_of("."));//去除文件扩展名
 
