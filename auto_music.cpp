@@ -119,22 +119,7 @@ vector<string> split(const string& data, const string& anchor) {
     return temp;
 }
 
-/*
-vector<string> split(const string &data,const string &anchor) {
-    vector<string> temp;
-    string k;
-    size_t start = 0, end = 0;
-    while ((end = data.find(anchor)) != string::npos) {//end是anchor的第一个字元的索引
-        k = data.substr(start, end - start);
-        put_16(k);
-        temp.push_back(k);//从start到end-1
-        start = end + anchor.length();
-    }
-    //midi文件的音轨是 内容结尾 内容结尾 的，所以不需要处理最后一个音轨后的内容
-    return temp;
-}
-//切割成不同音轨，有结尾
-*/
+
 
 void put_16(char &c){
     cout << std::hex << std::setw(2) << std::setfill('0') << (static_cast<int>(c) & 0xFF) << " ";//转换为十六进制输出
@@ -171,3 +156,19 @@ int trans_16s_10int(string s) {
 //   4. 使用错误列表窗口查看错误
 //   5. 转到“项目”>“添加新项”以创建新的代码文件，或转到“项目”>“添加现有项”以将现有代码文件添加到项目
 //   6. 将来，若要再次打开此项目，请转到“文件”>“打开”>“项目”并选择 .sln 文件
+/*
+vector<string> split(const string &data,const string &anchor) {
+    vector<string> temp;
+    string k;
+    size_t start = 0, end = 0;
+    while ((end = data.find(anchor)) != string::npos) {//end是anchor的第一个字元的索引
+        k = data.substr(start, end - start);
+        put_16(k);
+        temp.push_back(k);//从start到end-1
+        start = end + anchor.length();
+    }
+    //midi文件的音轨是 内容结尾 内容结尾 的，所以不需要处理最后一个音轨后的内容
+    return temp;
+}
+//切割成不同音轨，有结尾
+*/
