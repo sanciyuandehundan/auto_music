@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <sstream>
 #include <vector>
+#include <windows.h>
 using namespace std;
 
 void read(string path);
@@ -40,74 +41,51 @@ vector<Yingui> yingui;//音轨
 
 class Yingui {
 public:
-    string data;//原始音轨字串
-    string name="无名";//音轨名
-    unsigned char instruct;//乐器
-    stringstream stre;//字串流
-    int load;//通道
-
-
-    Yingui(string data_) {
-        data = data_;
-        stre << data;
-        stre.ignore(4);//跳过开头标识长度的内容
-        char c;//暂存字元
-        event_::event_type temp = event_::event_type::stop;//暂存当前读取事件的类型
-        event_::event_type temp_previous = event_::event_type::null;//暂存上一个读取事件的类型
-
-        while (stre.get(c)) {
-            if (temp_previous == event_::stop) {//如果上一个是间隔事件，此事件可能是间隔事件以外的事件
-
-            }
-            else {//如果上一个事件不是间隔事件，那此事件必为间隔事件
-                stop_handle(c);
-            }
-        }
-    }
-
-    void stop_handle(char c_) {
-        int temp = 0;
-        char c = c_;
-        while (true) {
-            if ((c >> 7) == 1) {
-                temp = (temp << 7) + (c & 0b01111111);
-            }
-            else {
-                temp = (temp << 7) + c;
-                break;
-            }
-            stre.get(c);
-        }
-
-    }
 
     class play {
-        play &next;
+    public:
+        play* next = nullptr;
+        virtual void play_() {
+            next->play_();
+        }
     };
-    class play_down  {
+    class play_down :public play {
+    public:
         int note;
         void play_() {
 
         }
-        play_down(play& previous,int note_) {
-            note = note_;
-            previous->next = null;
-        }
-    };
-    class play_up :play {
-        int note;
-        void play_() {
-
-        }
-        play_up(play previous, int note_) {
+        play_down(play* previous, int note_) {
             note = note_;
             previous->next = this;
         }
     };
-    class play_stop :play {
+    class play_up :public play {
+    public:
+        int note;
         void play_() {
 
         }
+        play_up(play* previous, int note_) {
+            note = note_;
+            previous->next = this;
+        }
+    };
+    class play_stop :public play {
+        int time;
+        void play_() {
+
+        }
+        play_stop(play* previous,int time_) {
+            time = time_;
+            previous->next = this;
+        }
+    };
+    class play_end :public play {
+        void play_() {
+            cout << "演奏结束";
+        }
+
     };
     struct event_
     {
@@ -159,6 +137,64 @@ public:
         int time;
         int note;
     };
+
+    string data;//原始音轨字串
+    string name="无名";//音轨名
+    unsigned char instruct;//乐器
+    stringstream stre;//字串流
+    int load;//通道
+    play start = play();
+    play last = start;
+
+    Yingui(string data_) {
+        data = data_;
+        stre << data;
+        stre.ignore(4);//跳过开头标识长度的内容
+        char c;//暂存字元
+        event_::event_type temp = event_::event_type::stop;//暂存当前读取事件的类型
+        event_::event_type temp_previous = event_::event_type::null;//暂存上一个读取事件的类型
+
+        while (stre.get(c)) {
+            if (temp_previous == event_::stop) {//如果上一个是间隔事件，此事件可能是间隔事件以外的事件
+                switch (c>>4)
+                {
+                case 0x08:
+                    play_up u(&last, stre.get());
+                    stre.get();
+                case 0x09:
+                case 0x0a:
+                case 0x0b:
+                case 0x0c:
+                case 0x0d:
+                case 0x0e:
+                case 0xf0:
+                case 0xff:
+                default:
+                    break;
+                }
+            }
+            else {//如果上一个事件不是间隔事件，那此事件必为间隔事件
+                stop_handle(c);
+            }
+        }
+    }
+
+    void stop_handle(char c_) {
+        int temp = 0;
+        char c = c_;
+        while (true) {
+            if ((c >> 7) == 1) {
+                temp = (temp << 7) + (c & 0b01111111);
+            }
+            else {
+                temp = (temp << 7) + c;
+                break;
+            }
+            stre.get(c);
+        }
+
+    }
+
 };
 
 int main() {
