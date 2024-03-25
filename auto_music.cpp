@@ -17,12 +17,13 @@ void put_16(char &c);
 void put_16(string &s);
 void put_16(int &i);
 int trans_16s_10int(string a);
-//方法提前宣告
+class Yingui;
+//提前宣告
 
 int midi_head_long = 0;//文件头多长
 const string midi_head = "\x4d\x54\x68\x64";//文件头
 const string yingui_head = "\x4d\x54\x72\x6b";//文件头
-const string midi_end = "\xff\x2f\x00";//音轨结尾 ff 2f 00
+const string midi_end = "\xff\x2f\x00";//音轨结尾
 const string midi_speed = "\xff\x51\x03";//速度事件开头
 const string midi_pai = "\xff\x58\x04";//拍子事件开头
 const string midi_diaohao = "\xff\x59\x02";//调号事件开头
@@ -34,22 +35,134 @@ vector<unsigned char> File_yingui_instruct;//以音轨为单位存储乐器
 unsigned short File_yingui_class;//该文件音轨类型，0000单音轨，0001同步多音轨，0002异步多音轨(不受理)
 unsigned short File_yingui_num;//该文件音轨数量,全局音轨计算在内
 unsigned short File_time_tick;//该文件一个四分音符几tick
+vector<Yingui> yingui;//音轨
 //全局变量
 
-struct Yingui {
+class Yingui {
 public:
     string data;//原始音轨字串
-    string name;//音轨名
-    unsigned char instruct;
+    string name="无名";//音轨名
+    unsigned char instruct;//乐器
+    stringstream stre;//字串流
+    int load;//通道
 
 
-    Yingui(string complete) {
+    Yingui(string data_) {
+        data = data_;
+        stre << data;
+        stre.ignore(4);//跳过开头标识长度的内容
+        char c;//暂存字元
+        event_::event_type temp = event_::event_type::stop;//暂存当前读取事件的类型
+        event_::event_type temp_previous = event_::event_type::null;//暂存上一个读取事件的类型
+
+        while (stre.get(c)) {
+            if (temp_previous == event_::stop) {//如果上一个是间隔事件，此事件可能是间隔事件以外的事件
+
+            }
+            else {//如果上一个事件不是间隔事件，那此事件必为间隔事件
+                stop_handle(c);
+            }
+        }
+    }
+
+    void stop_handle(char c_) {
+        int temp = 0;
+        char c = c_;
+        while (true) {
+            if ((c >> 7) == 1) {
+                temp = (temp << 7) + (c & 0b01111111);
+            }
+            else {
+                temp = (temp << 7) + c;
+                break;
+            }
+            stre.get(c);
+        }
 
     }
+
+    class play {
+        play &next;
+    };
+    class play_down  {
+        int note;
+        void play_() {
+
+        }
+        play_down(play& previous,int note_) {
+            note = note_;
+            previous->next = null;
+        }
+    };
+    class play_up :play {
+        int note;
+        void play_() {
+
+        }
+        play_up(play previous, int note_) {
+            note = note_;
+            previous->next = this;
+        }
+    };
+    class play_stop :play {
+        void play_() {
+
+        }
+    };
+    struct event_
+    {
+    public:
+        enum event_type {
+            _8x = 0//松开按键
+            , _9x = 1//按下按键
+            , _Ax = 2//触后音符
+            , _Bx = 3//控制器
+            , _Cx = 4//改变乐器
+            , _Dx = 5//触后通道
+            , _Ex = 6//滑音
+            , _F0 = 7//系统码
+            , _FF = 8//其他格式，后有额外标识
+            , null = 9//未决定
+            , stop = 10//间隔时间
+        };
+        enum event_type_FF {
+            _01 = 0//文本信息，歌曲备注
+            , _02 = 1//版权信息
+            , _03 = 2//歌曲或音轨名称
+            , _04 = 3//乐器名称
+            , _05 = 4//歌词
+            , _06 = 5//文本标记
+            , _07 = 6//开始点
+            , _2F = 7//音轨结束
+            , _51 = 8//速度
+            , _58 = 9//节拍
+            , _59 = 10//调号
+            , _7F = 11//音序特定信息
+        };
+
+        string data;
+        event_type ev;
+        event_type_FF evf;
+        vector<short> event_tail;
+        event_(string data_) {
+            data = data_;
+
+        }
+    };
+    struct event_play {
+    public:
+        enum play {
+            down = 0,
+            keep = 1,
+            up = 2
+        };
+        int time;
+        int note;
+    };
 };
 
 int main() {
-    read("C:\\Users\\a0905\\Downloads\\「spiral」- 无职转生S2 OP-V1.mid");
+    read("C:\\Users\\a0905\\Downloads\\spiral.mid");
     parse();
 }
 
@@ -71,6 +184,7 @@ void read(string path)
     }
     else {
         printf("无法打开%s文件,请检查路径是否正确\n",file_name.c_str()); // 如果无法打开文件则输出错误信息
+        main();
     }
     
 }
