@@ -14,7 +14,7 @@ using namespace std;
 void read(string path);
 void parse();
 vector<string> split(const string& data, const string& anchor);
-void put_16(char &c);
+void put_16(unsigned char &c);
 void put_16(string &s);
 void put_16(int &i);
 int trans_16s_10int(string a);
@@ -28,7 +28,7 @@ const string midi_end = "\xff\x2f\x00";//音轨结尾
 const string midi_speed = "\xff\x51\x03";//速度事件开头
 const string midi_pai = "\xff\x58\x04";//拍子事件开头
 const string midi_diaohao = "\xff\x59\x02";//调号事件开头
-const int midi_note_long = 500;//一个四分音符默认多长(毫秒)
+int midi_note_long = 500;//一个四分音符多长(微秒)
 string file_name;//文件名
 string File_all;//这个文件，使用时尽量以引用为主，减少不必要复制
 vector<string> File_yingui;//以音轨为单位存储
@@ -36,7 +36,10 @@ vector<unsigned char> File_yingui_instruct;//以音轨为单位存储乐器
 unsigned short File_yingui_class;//该文件音轨类型，0000单音轨，0001同步多音轨，0002异步多音轨(不受理)
 unsigned short File_yingui_num;//该文件音轨数量,全局音轨计算在内
 unsigned short File_time_tick;//该文件一个四分音符几tick
-vector<Yingui> yingui;//音轨
+string tempo;//记录节拍
+char bell;//节拍器时钟
+char four_32;//一个四分音符包含几个三十二音符
+vector<Yingui*> yingui;//音轨
 //全局变量
 
 class Yingui {
@@ -53,39 +56,49 @@ public:
     public:
         int note;
         void play_() {
-
+            next->play_();
         }
         play_down(play* previous, int note_) {
             note = note_;
             previous->next = this;
+            put_16(note);
+            cout << endl;
         }
     };
     class play_up :public play {
     public:
         int note;
         void play_() {
-
+            next->play_();
         }
         play_up(play* previous, int note_) {
             note = note_;
             previous->next = this;
+            put_16(note);
+            cout << endl;
         }
     };
     class play_stop :public play {
+    public:
         int time;
         void play_() {
-
+            next->play_();
         }
         play_stop(play* previous,int time_) {
             time = time_;
             previous->next = this;
+            put_16(time);
+            cout << endl;
         }
     };
     class play_end :public play {
+    public:
         void play_() {
             cout << "演奏结束";
         }
-
+        play_end(play* previous) {
+            previous->next = this;
+        }
     };
     struct event_
     {
@@ -117,88 +130,203 @@ public:
             , _59 = 10//调号
             , _7F = 11//音序特定信息
         };
-
-        string data;
-        event_type ev;
-        event_type_FF evf;
-        vector<short> event_tail;
-        event_(string data_) {
-            data = data_;
-
-        }
-    };
-    struct event_play {
-    public:
-        enum play {
-            down = 0,
-            keep = 1,
-            up = 2
-        };
-        int time;
-        int note;
     };
 
-    string data;//原始音轨字串
-    string name="无名";//音轨名
-    unsigned char instruct;//乐器
-    stringstream stre;//字串流
-    int load;//通道
-    play start = play();
-    play last = start;
-
-    Yingui(string data_) {
-        data = data_;
-        stre << data;
-        stre.ignore(4);//跳过开头标识长度的内容
-        char c;//暂存字元
-        event_::event_type temp = event_::event_type::stop;//暂存当前读取事件的类型
-        event_::event_type temp_previous = event_::event_type::null;//暂存上一个读取事件的类型
-
-        while (stre.get(c)) {
-            if (temp_previous == event_::stop) {//如果上一个是间隔事件，此事件可能是间隔事件以外的事件
-                switch (c>>4)
-                {
-                case 0x08:
-                    play_up u(&last, stre.get());
-                    stre.get();
-                case 0x09:
-                case 0x0a:
-                case 0x0b:
-                case 0x0c:
-                case 0x0d:
-                case 0x0e:
-                case 0xf0:
-                case 0xff:
-                default:
-                    break;
-                }
-            }
-            else {//如果上一个事件不是间隔事件，那此事件必为间隔事件
-                stop_handle(c);
-            }
-        }
-    }
-
-    void stop_handle(char c_) {
+    int stop_handle(unsigned char c) {
         int temp = 0;
-        char c = c_;
         while (true) {
-            if ((c >> 7) == 1) {
+            put_16(c);
+            if (c & 0x80) {
                 temp = (temp << 7) + (c & 0b01111111);
+                c = static_cast<unsigned char>(stre.get());
             }
             else {
                 temp = (temp << 7) + c;
                 break;
             }
-            stre.get(c);
         }
+        cout << endl;
+        return temp;
+    }
+    void other_handle(unsigned char ty,unsigned char len) {
+        switch (ty) {
+        case 0x01:
+            cout << "备注" << endl;
+            text.clear();
+            text.resize(len);
+            stre.read(&text[0], len);//读取备注
+            cout << text << endl;
+            break;
+        case 0x02:
+            cout << "版权" << endl;
+            power.clear();
+            power.resize(len);
+            stre.read(&power[0], len);//读取版权信息
+            cout << power << endl;
+            break;
+        case 0x03:
+            cout << "音轨名" << endl;
+            name.clear();
+            name.resize(len);
+            stre.read(&name[0], len);//读取音轨名
+            cout << name << endl;
+            break;
+        case 0x04:
+            cout << "乐器名称" << endl;
+            instruct_name.clear();
+            instruct_name.resize(len);
+            stre.read(&instruct_name[0], len);//读取乐器名
+            cout << instruct_name << endl;
+            break;
+        case 0x2f: {//音轨结束
+            cout << "结束" << endl;
+            play_end* e =new play_end(last);
+            last = e;
+            have = false;
+            break;
+        }
+        case 0x51: {
+            cout << "音符长度" << endl;
+            midi_note_long = 0;
+            unsigned char c;
+            for (int i = 0; i < 3; i++) {
+                c = static_cast<unsigned char>(stre.get());
+                midi_note_long = (midi_note_long << 8) + c;
+                put_16(c);
+            }
+            cout <<midi_note_long<< endl;
+            break;
+        }
+        case 0x58:
+            cout << "节拍" << endl;
+            unsigned char h, j, k, l;
+            h=static_cast<unsigned char>(stre.get());//拍子分子
+            j= static_cast<unsigned char>(stre.get());//拍子分母
+            k= static_cast<unsigned char>(stre.get());//节拍器时钟(未知)
+            l= static_cast<unsigned char>(stre.get());//一个四分音符包含几个三十二分音符
+            h += '0';
+            j = (2 ^ j) + '0';
+            k += '0';
+            l += '0';
+            tempo += h + '/' + j;
+            break;
+        case 0x59:
+            cout << "调号" << endl;
+            unsigned char ud, bs;
+            ud= static_cast<unsigned char>(stre.get());//获取升降号数
+            bs= static_cast<unsigned char>(stre.get());//获取大小调
+            break;
+        }
+    }
 
+    string data;//原始音轨字串
+    string name="无名";//音轨名
+    string text;//音轨备注
+    string power;//版权信息
+    string instruct_name;//乐器名称
+    unsigned char instruct=0;//乐器，默认钢琴
+    stringstream stre;//字串流
+    int load;//通道
+    play start = play();
+    play *last = &start;
+    bool have = true;
+
+    Yingui(string data_) {
+        const unsigned char FF = '\xff';
+        const unsigned char F0 = '\xf0';
+        data = data_;
+        stre = stringstream(data);//将字串输入流
+        stre.ignore(4);//跳过开头标识长度的内容
+        unsigned char c;//暂存字元
+        event_::event_type temp_previous = event_::event_type::null;//暂存上一个读取事件的类型
+        while (have) {
+            cout << "__________________________" << endl;
+            c = static_cast<unsigned char>(stre.get());
+            cout << std::hex << std::setw(2) << std::setfill('0') << (static_cast<int>(c) & 0xFF) << " ";
+            if (temp_previous == event_::stop) {//如果上一个是间隔事件，此事件可能是间隔事件以外的事件
+                cout << "test ";
+                switch (c >> 4)
+                {
+                case 0x8: {//松开事件
+                    cout << "松开";
+                    play_up* u=new play_up(last, stre.get());//创建
+                    last = u;//记录指令链最后一个
+                    stre.ignore(1);//忽略力度符号
+                    temp_previous = event_::_8x;
+                    break;
+                }
+                case 0x9: {//按下事件
+                    cout << "按下";
+                    play_down* d=new play_down(last, stre.get());//创建
+                    last = d;//记录指令链最后一个
+                    stre.ignore(1);//忽略力度符号
+                    temp_previous = event_::_9x;
+                    break;
+                }
+                case 0xc://设定乐器
+                    cout << "设定乐器"<<endl;
+                    instruct = stre.get();
+                    temp_previous = event_::_Cx;
+                    break;
+                case 0xf://f开头事件
+                    cout << "f开头事件 ";
+                    if (c == FF) {
+                        cout << "元事件 ";
+                        unsigned char ty, len;
+                        ty= static_cast<unsigned char>(stre.get());//获取事件类型
+                        len= static_cast<unsigned char>(stre.get());//获取参数长度
+                        other_handle(ty, len);
+                        temp_previous = event_::_FF;
+                    }//元事件
+                    else {
+                        cout << "系统码";
+                        stre.ignore(2);
+                        temp_previous = event_::_F0;
+                    }//系统码
+                    break;
+                case 0xa:
+                    cout << "无法呈现a";
+                    stre.ignore(2);
+                    temp_previous = event_::_Ax;
+                    break;//原琴无法呈现这个
+                case 0xb:
+                    cout << "无法呈现b";
+                    stre.ignore(2);
+                    temp_previous = event_::_Bx;
+                    break;//原琴无法呈现这个
+                case 0xd:
+                    cout << "无法呈现d";
+                    stre.ignore(2);
+                    temp_previous = event_::_Dx;
+                    break;//原琴无法呈现这个
+                case 0xe:
+                    cout << "无法呈现e";
+                    stre.ignore(2);
+                    temp_previous = event_::_Ex;
+                    break;//原琴无法呈现这个
+                default: {//仍是间隔事件
+                    cout << "间隔";
+                    play_stop* s =new play_stop(last, stop_handle(c));
+                    last = s;
+                    temp_previous = event_::stop;
+                    break;
+                }
+                }
+            }
+            else {//如果上一个事件不是间隔事件，那此事件必为间隔事件
+                cout << "间隔";
+                play_stop* s =new play_stop(last, stop_handle(c));
+                last = s;
+                temp_previous = event_::stop;
+            }
+        }
     }
 
 };
 
 int main() {
     read("C:\\Users\\a0905\\Downloads\\spiral.mid");
+    //read("C:\\Users\\a0905\\Downloads\\「spiral」- 无职转生S2 OP-V1.mid");
     parse();
 }
 
@@ -239,13 +367,14 @@ void parse() {
     }
     File_yingui_num = trans_16s_10int(File_all.substr(10,2));//读取音轨数量
 
-
-
     File_yingui = split(File_all, yingui_head);//将各个音轨分离储存
+    File_yingui.erase(File_yingui.begin());//删除不是音轨的部分
     cout << "\n__________________________"<<endl;
     for (string& yg : File_yingui) {//yg为引用，可以影响File_yingui
         put_16(yg);
         cout << "\n__________________________" <<endl;
+        Yingui* y=new Yingui(yg);
+        yingui.push_back(y);
     }
 }
 
@@ -253,13 +382,7 @@ vector<string> split(const string& data, const string& anchor) {
     vector<string> temp;
     size_t start = 0, end = 0;
     while ((end = data.find(anchor, start)) != string::npos) {
-        // 处理连续出现多个锚点的情况
-        if (start == end) {
-            temp.push_back("");
-        }
-        else {
-            temp.push_back(data.substr(start, end - start));
-        }
+        temp.push_back(data.substr(start, end - start));
         start = end + anchor.length();
     }
     // 处理字符串以锚点结尾的情况
@@ -271,7 +394,7 @@ vector<string> split(const string& data, const string& anchor) {
 
 
 
-void put_16(char &c){
+void put_16(unsigned char &c){
     cout << std::hex << std::setw(2) << std::setfill('0') << (static_cast<int>(c) & 0xFF) << " ";//转换为十六进制输出
 }
 //以16进制输出(字元)
