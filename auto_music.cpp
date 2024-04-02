@@ -12,6 +12,8 @@
 #include <chrono>
 #include <thread>
 #include <cmath>
+#include <mutex>
+#include <condition_variable>
 using namespace std;
 
 void read(string path);
@@ -72,7 +74,9 @@ char bell;//节拍器时钟
 char four_32;//一个四分音符包含几个三十二音符
 vector<Yingui*> yingui;//音轨
 vector<thread> threads;//播放执行绪
-
+mutex mtx;//互斥锁
+condition_variable cv;
+bool thread_start = false;
 //全局变量
 
 class Yingui {
@@ -99,6 +103,10 @@ public:
             next->handle_again();
         }
         virtual void play_() {
+            {
+                std::unique_lock<std::mutex> lock(mtx);
+                cv.wait(lock, [] { return thread_start; }); // 等待条件变量满足
+            }
             next->play_();
         }
     };
@@ -520,6 +528,11 @@ int main() {
     cout << endl;
     //确认选择内容
 
+    creat_th(choice, choice_num);//创建执行绪
+    for (unsigned int i = 0; i < threads.size(); i++) {
+        threads[i].detach();
+    }//启动执行绪
+
     int stoptime;
     cout << "几秒后开始: ";
     while (!(cin >> stoptime)) {
@@ -532,13 +545,16 @@ int main() {
     this_thread::sleep_for(chrono::seconds(stoptime));
     //设定几秒后开始
 
-    creat_th(choice, choice_num);//创建执行绪
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        thread_start = true;
+        cv.notify_all(); // 通知所有等待的线程开始执行
+    }
 
-    for (unsigned int i = 0; i < threads.size(); i++) {
-        threads[i].detach();
-    }//启动执行绪
     cout << "kkk"<<maxtime;
-    this_thread::sleep_for(chrono::microseconds(maxtime));
+    this_thread::sleep_for(chrono::microseconds(maxtime+15000000));
+
+    //main();
 }
 
 void read(string path) 
