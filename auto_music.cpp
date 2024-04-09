@@ -27,6 +27,12 @@ void time_handle();
 class Yingui;
 void play_th(Yingui* yg);
 void creat_th(int* choice, int num);
+void allclear();
+void yinguiclear();
+void threadclear();
+void choice_file();
+void choice_yingui();
+void startplay();
 enum key {
     Q = 0x48,
     W = 0x4a,
@@ -77,6 +83,10 @@ vector<thread> threads;//播放执行绪
 mutex mtx;//互斥锁
 condition_variable cv;
 bool thread_start = false;
+bool creatermode = false;//开发者模式
+int* choice = new int[yingui_num];//选择哪几个
+int choice_num = -999;//选择几个
+int maxtime = 0;
 //全局变量
 
 class Yingui {
@@ -141,20 +151,21 @@ public:
                 k = VK_SPACE;
                 break;
             }
-            //cout << "按下: " << k;
-            //cout << "\n__________________________" << endl;
+            if (creatermode) cout << "按下: " << k;
+            if (creatermode)cout << "\n__________________________" << endl;
             next->handle_again();
         }
         void play_() {
-            keybd_event(k,0,0,0);
+            keybd_event(k, 0, 0, 0);
+            keybd_event(k, 0, KEYEVENTF_KEYUP, 0);
             next->play_();
         }
-        play_down(play* previous, int note_,Yingui* pare) {
+        play_down(play* previous, int note_, Yingui* pare) {
             note = note_;
             previous->next = this;
             parent = pare;
-            //put_16(note);
-            //cout << endl;
+            if (creatermode)put_16(note);
+            if (creatermode)cout << endl;
         }
     };
     class play_up :public play {
@@ -180,21 +191,20 @@ public:
             case 0x30:k = 'Z'; break;
             case 0x32:k = 'X'; break;
             case 0x34:k = 'C'; break;
-            case 0x35e:k = 'V'; break;//kk
+            case 0x35:k = 'V'; break;//kk
             case 0x37:k = 'B'; break;
             case 0x39:k = 'N'; break;
             case 0x3b:k = 'M'; break;//kk
             default:
                 k = VK_SPACE;
-                cout << "无法映射" << note<<endl;
+                if (creatermode)cout << "无法映射" << note<<endl;
                 break;
             }
-            //cout << "松开: " << k;
-            //cout << "\n__________________________" << endl;
+            if (creatermode)cout << "松开: " << k;
+            if (creatermode)cout << "\n__________________________" << endl;
             next->handle_again();
         }
         void play_() {
-            keybd_event(k, 0, KEYEVENTF_KEYUP, 0);
             next->play_();
         }
         play_up(play* previous, int note_,Yingui* pare) {
@@ -232,8 +242,8 @@ public:
     class play_end :public play {
     public:
         void handle_again() {
-            cout << "处理结束";
-            cout << "\n__________________________" << endl;
+            if (creatermode)cout << "处理结束";
+            if (creatermode)cout << "\n__________________________" << endl;
         }
         void play_() {
             cout << "演奏结束"<<endl;
@@ -297,54 +307,54 @@ public:
     void other_handle(unsigned char ty,unsigned char len) {
         switch (ty) {
         case 0x01://读取备注
-            cout << "备注" << endl;
+            if (creatermode)cout << "备注" << endl;
             text.clear();
             text.resize(len);
             stre.read(&text[0], len);
-            cout << text << endl;
+            if (creatermode)cout << text << endl;
             break;
         case 0x02://读取版权信息
-            cout << "版权" << endl;
+            if (creatermode)cout << "版权" << endl;
             power.clear();
             power.resize(len);
             stre.read(&power[0], len);
-            cout << power << endl;
+            if (creatermode)cout << power << endl;
             break;
         case 0x03://读取音轨名
-            cout << "音轨名" << endl;
+            if (creatermode)cout << "音轨名" << endl;
             name.clear();
             name.resize(len);
             stre.read(&name[0], len);
-            cout << name << endl;
+            if (creatermode)cout << name << endl;
             break;
         case 0x04://读取乐器名
-            cout << "乐器名称" << endl;
+            if (creatermode)cout << "乐器名称" << endl;
             instruct_name.clear();
             instruct_name.resize(len);
             stre.read(&instruct_name[0], len);
-            cout << instruct_name << endl;
+            if (creatermode)cout << instruct_name << endl;
             break;
         case 0x2f: {//音轨结束
-            cout << "结束" << endl;
+            if (creatermode)cout << "结束" << endl;
             play_end* e =new play_end(last,this);
             last = e;
             have = false;
             break;
         }
         case 0x51: {//读取一个四分音符多长
-            cout << "音符长度" << endl;
+            if (creatermode)cout << "音符长度" << endl;
             note_weimiao = 0;
             unsigned char c;
             for (int i = 0; i < 3; i++) {
                 c = static_cast<unsigned char>(stre.get());
                 note_weimiao = (note_weimiao << 8) + c;
-                put_16(c);
+                if (creatermode)put_16(c);
             }
-            cout <<note_weimiao<< endl;
+            if (creatermode)cout <<note_weimiao<< endl;
             break;
         }
         case 0x58://读取节拍
-            cout << "节拍" << endl;
+            if (creatermode)cout << "节拍" << endl;
             unsigned char h, j, k, l;
             h=static_cast<unsigned char>(stre.get());//拍子分子
             j= static_cast<unsigned char>(stre.get());//拍子分母
@@ -357,16 +367,16 @@ public:
             tempo += h;
             tempo += '/';
             tempo += to_string(j);
-            cout << tempo << endl;
+            if (creatermode)cout << tempo << endl;
             break;
         case 0x59:
-            cout << "调号" << endl;
+            if (creatermode)cout << "调号" << endl;
             unsigned char ud, bs;
             ud= static_cast<unsigned char>(stre.get());//获取升降号数
             bs= static_cast<unsigned char>(stre.get());//获取大小调
             break;
         }
-        cout << "__________________________" << endl;
+        if (creatermode)cout << "__________________________" << endl;
     }
 
 
@@ -408,9 +418,9 @@ public:
                     temp_previous = event_::_Cx;
                     break;
                 case 0xf://f开头事件
-                    cout << "f开头事件 ";
+                    if (creatermode)cout << "f开头事件 ";
                     if (c == FF) {
-                        cout << "元事件 ";
+                        if (creatermode)cout << "元事件 ";
                         unsigned char ty, len;
                         ty= static_cast<unsigned char>(stre.get());//获取事件类型
                         len= static_cast<unsigned char>(stre.get());//获取参数长度
@@ -418,28 +428,28 @@ public:
                         temp_previous = event_::_FF;
                     }//元事件
                     else {
-                        cout << "系统码";
+                        if (creatermode)cout << "系统码";
                         stre.ignore(2);
                         temp_previous = event_::_F0;
                     }//系统码
                     break;
                 case 0xa:
-                    cout << "无法呈现a";
+                    if (creatermode)cout << "无法呈现a";
                     stre.ignore(2);
                     temp_previous = event_::_Ax;
                     break;//原琴无法呈现这个
                 case 0xb:
-                    cout << "无法呈现b";
+                    if (creatermode)cout << "无法呈现b";
                     stre.ignore(2);
                     temp_previous = event_::_Bx;
                     break;//原琴无法呈现这个
                 case 0xd:
-                    cout << "无法呈现d";
+                    if (creatermode)cout << "无法呈现d";
                     stre.ignore(2);
                     temp_previous = event_::_Dx;
                     break;//原琴无法呈现这个
                 case 0xe:
-                    cout << "无法呈现e";
+                    if (creatermode)cout << "无法呈现e";
                     stre.ignore(2);
                     temp_previous = event_::_Ex;
                     break;//原琴无法呈现这个
@@ -473,15 +483,60 @@ public:
 };
 
 int main() {
-    cout << "这里是原琴脚本\nBiliBili搜索三次元的混蛋,你将什么都搜不到,因为我还没上传\nGithub搜索sanciyuandehundan,你也搜不到代码,因为我没公开我的库\n(<ゝω0)☆哎嘿\n";
+    bool yunxing = true;
+    bool fileagain = true;
+    bool yinguiagain = true;
+    while (yunxing) {
+        if (fileagain)choice_file();
+        if (yinguiagain)choice_yingui();
+        startplay();
+        fileagain = false;
+        yinguiagain = false;
+        int caozuo = -999;
+        cout << "__________________________\n接下来的操作\n1—重新选择文件\n2—重新选择音轨\n3—重播\n4—关闭程序\n输入代号: ";
+
+        do {
+            if (caozuo != -999)cout << "输入内容非法，请重新输入: ";
+            cin.clear();
+            cin.ignore(pow(2, 31), '\n');
+            cin >> caozuo;
+        } while (caozuo > 4 || caozuo < 1);
+
+        switch (caozuo) {
+        case 1:
+            fileagain = true; 
+            yinguiagain = true;
+            allclear();
+            break;
+        case 2:
+            yinguiagain = true; 
+            yinguiclear();
+            break;
+        case 3:
+            threadclear();
+            break;
+        case 4:
+            yunxing = false;
+        }
+    }
+}
+
+void choice_file() {
+    allclear();
+
+    cout << "__________________________\n这里是原琴脚本\nBiliBili搜索三次元的混蛋,你将什么都搜不到,因为我还没上传\nGithub搜索sanciyuandehundan,你也搜不到代码,因为我没公开我的库\n(<ゝω0)☆哎嘿\n";
     cout << "请输入适配原琴的midi档完整路径: ";
     string s;
     cin >> s;
     read(s);
     //read("C:\\Users\\a0905\\Downloads\\spiral.mid");
-    //read("C:\\Users\\a0905\\Downloads\\「spiral」- 无职转生S2 OP-V1.mid");
-    //read("C:\\Users\\a0905\\Downloads\\mid (6).mid");
+//read("C:\\Users\\a0905\\Downloads\\「spiral」- 无职转生S2 OP-V1.mid");
+//read("C:\\Users\\a0905\\Downloads\\mid (6).mid");
     parse();
+}
+//选择文件
+
+void choice_yingui() {
     //play_th(yingui[2]);
     for (int i = 1; i < yingui_num; i++) {
         cout << "__________________________" << endl;
@@ -490,13 +545,12 @@ int main() {
     }
     //展示音轨信息，不包括全局音轨
 
-    int* choice = new int[yingui_num];//选择哪几个
-    int choice_num = -999;//选择几个
-
     do {//检测输入内容是否不合理
         if (choice_num != -999) {
             cout << "输入内容非法,请重新输入" << endl;
         }
+        cin.clear();
+        cin.ignore(pow(2, 31), '\n');
         cout << "\n选择几个: ";
         cin >> choice_num;
     } while (choice_num >= yingui_num || choice_num <= 0);
@@ -509,17 +563,18 @@ int main() {
             if ((temp != -999) && (same || (temp >= choice_num || temp <= 0))) {
                 cout << "输入内容非法,请重新输入" << endl;
             }
+            cin.clear();
+            cin.ignore(pow(2, 31), '\n');
             cout << "请输入音轨代号，数字即可: ";
             cin >> temp;
             same = false;
             for (int k = 0; k < i; k++) {
                 if (temp == choice[k])same = true;
-            }
+            }//是否有重复选择
             if (!same)choice[i] = temp;
         } while (same || (temp >= yingui_num || temp <= 0));
     }
     //输入选择哪几个
-    int maxtime = 0;
     cout << "选择: ";
     for (int i = 0; i < choice_num; i++) {
         cout << choice[i] << " ";
@@ -527,7 +582,10 @@ int main() {
     }
     cout << endl;
     //确认选择内容
+}
+//选择音轨
 
+void startplay() {
     creat_th(choice, choice_num);//创建执行绪
     for (unsigned int i = 0; i < threads.size(); i++) {
         threads[i].detach();
@@ -551,11 +609,10 @@ int main() {
         cv.notify_all(); // 通知所有等待的线程开始执行
     }
 
-    cout << "kkk"<<maxtime;
-    this_thread::sleep_for(chrono::microseconds(maxtime+15000000));
-
-    //main();
+    cout << "时长（ms）: " << dec << maxtime << endl;
+    this_thread::sleep_for(chrono::microseconds(maxtime + 15000000));
 }
+//开始演奏
 
 void read(string path) 
 {
@@ -570,10 +627,10 @@ void read(string path)
             all += byte;
         }
         file.close(); // 关闭文件
-        printf("\n%s读取成功！\n",file_name.c_str());
+        printf("\n%s读取成功！\n__________________________\n",file_name.c_str());
     }
     else {
-        printf("无法打开%s文件,请检查路径是否正确\n",file_name.c_str()); // 如果无法打开文件则输出错误信息
+        printf("__________________________\n无法打开%s文件,请检查路径是否正确\n",file_name.c_str()); // 如果无法打开文件则输出错误信息
         main();
     }
     
@@ -582,25 +639,28 @@ void read(string path)
 
 void parse() {
     head = trans_16s_10int(all.substr(4, 4));//记录接下来几个字元是文件头
-    cout << "文件头长度: " << head<<endl;
+    if(creatermode)cout << "文件头长度: " << head<<endl;
     if (head != 6) {
         printf("文件格式非法,请选择其他文件");
-        main();
+        allclear();
+        choice_file();
     }
     yingui_class = trans_16s_10int(all.substr(8, 2));//读取音轨类型
-    cout << "音轨类型: " << yingui_class << endl;
+    if (creatermode)cout << "音轨类型: " << yingui_class << endl;
     if (yingui_class == 2) {
         printf("文件格式非法,请选择其他文件");
-        main();
+        allclear();
+        choice_file();
     }
     yingui_num = trans_16s_10int(all.substr(10,2));//读取音轨数量
-    cout << "音轨数量: " << yingui_num << endl;
+    if (creatermode)cout << "音轨数量: " << yingui_num << endl;
+
     time_tick = trans_16s_10int(all.substr(12,2));//读取一个四分音符几tick
-    cout << "一个四分音符几tick: " << time_tick<<endl;
+    if (creatermode)cout << "一个四分音符几tick: " << time_tick<<endl;
 
     yingui_string = split(all, yingui_head);//将各个音轨分离储存
     yingui_string.erase(yingui_string.begin());//删除不是音轨的部分
-    cout << "\n__________________________"<<endl;
+    if (creatermode)cout << "\n__________________________"<<endl;
     for (string& yg : yingui_string) {//字串较长，为避免无意义复制而使用传指针
         //put_16(yg);
         //cout << "\n__________________________" <<endl;
@@ -648,6 +708,45 @@ void creat_th(int* list,int num) {
 }
 //初始化执行绪
 
+void allclear() {
+    head = 0;//文件头多长
+    note_weimiao = 500000;//一个四分音符多长(微秒)
+    file_name;//文件名
+    all = "";//这个文件，使用时尽量以引用为主，减少不必要复制
+    yingui_string.clear();//以音轨为单位存储
+    yingui_class = 0;//该文件音轨类型，0000单音轨，0001同步多音轨，0002异步多音轨(不受理)
+    yingui_num = 1;//该文件音轨数量,全局音轨计算在内
+    time_tick = 480;//该文件一个四分音符几tick
+    ud = 0;//调号升降号数
+    bs = 0;//大小调
+    tick_weimiao = 0;//一个tick几微妙
+    tempo = "";//记录节拍
+    bell = '\0';//节拍器时钟
+    four_32 = '\0';//一个四分音符包含几个三十二音符
+    yingui.clear();//音轨
+    threads.clear();//播放执行绪
+    thread_start = false;
+    choice = new int[yingui_num];//选择哪几个
+    choice_num = -999;//选择几个
+    maxtime = 0;
+}
+//清理内存，为下次演奏
+
+void yinguiclear() {
+    yingui.clear();//音轨
+    threads.clear();//播放执行绪
+    choice = new int[yingui_num];//选择哪几个
+    choice_num = -999;//选择几个
+    maxtime = 0;
+    thread_start = false;
+}
+//清理音轨选择，为重选音轨
+
+void threadclear() {
+    threads.clear();
+    thread_start = false;
+}
+//清理执行绪，为重播
 
 void put_16(unsigned char &c){
     cout << std::hex << std::setw(2) << std::setfill('0') << (static_cast<int>(c) & 0xFF) << " ";//转换为十六进制输出
