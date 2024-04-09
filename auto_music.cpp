@@ -610,7 +610,7 @@ void startplay() {
     }
 
     cout << "时长（ms）: " << dec << maxtime << endl;
-    this_thread::sleep_for(chrono::microseconds(maxtime + 15000000));
+    this_thread::sleep_for(chrono::microseconds(maxtime + 5000000));
 }
 //开始演奏
 
@@ -733,7 +733,7 @@ void allclear() {
 //清理内存，为下次演奏
 
 void yinguiclear() {
-    yingui.clear();//音轨
+    //yingui.clear();//音轨
     threads.clear();//播放执行绪
     choice = new int[yingui_num];//选择哪几个
     choice_num = -999;//选择几个
