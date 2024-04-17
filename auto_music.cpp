@@ -9,6 +9,7 @@
 #include <sstream>
 #include <vector>
 #include <Windows.h>
+#include <winuser.h>
 #include <chrono>
 #include <thread>
 #include <cmath>
@@ -122,16 +123,24 @@ public:
             }
             next->play_();
         }
-        virtual void down_add(play_down* pd);
+        virtual void down_add(play_down* pd) {
+
+        }
     };
     class play_down :public play {
     public:
         int note;
         //vector<char> k;
         //char k;
-        char k[7];
+        WORD k[7];
         int k_num = 0;
+        INPUT input_d[7] = { 0 };
+        INPUT input_u[7] = { 0 };
         void handle_again() {
+            for (int i = 0; i < 7; i++) {
+                input_d[i].type = INPUT_KEYBOARD;
+                input_u[i].type = KEYEVENTF_KEYUP;
+            }
             switch (note) {
                 /*case 0x48:k.push_back('Q'); break;
                 case 0x4a:k.push_back('W'); break;
@@ -158,42 +167,51 @@ public:
                     k.push_back(VK_SPACE);
                     break;
                 }*/
-            case 0x48:k[k_num] = 'Q'; break;
-            case 0x4a:k[k_num] = 'W'; break;
-            case 0x4c:k[k_num] = 'E'; break;
-            case 0x4d:k[k_num] = 'R'; break;
-            case 0x4f:k[k_num] = 'T'; break;
-            case 0x51:k[k_num] = 'Y'; break;
-            case 0x53:k[k_num] = 'U'; break;
-            case 0x3c:k[k_num] = 'A'; break;
-            case 0x3e:k[k_num] = 'S'; break;
-            case 0x40:k[k_num] = 'D'; break;
-            case 0x41:k[k_num] = 'F'; break;
-            case 0x43:k[k_num] = 'G'; break;
-            case 0x45:k[k_num] = 'H'; break;
-            case 0x47:k[k_num] = 'J'; break;
-            case 0x30:k[k_num] = 'Z'; break;
-            case 0x32:k[k_num] = 'X'; break;
-            case 0x34:k[k_num] = 'C'; break;
-            case 0x35:k[k_num] = 'V'; break;
-            case 0x37:k[k_num] = 'B'; break;
-            case 0x39:k[k_num] = 'N'; break;
-            case 0x3b:k[k_num] = 'M'; break;
+            case 0x48:k[k_num] = 0x51; break;
+            case 0x4a:k[k_num] = 0x57; break;
+            case 0x4c:k[k_num] = 0x45; break;
+            case 0x4d:k[k_num] = 0x52; break;
+            case 0x4f:k[k_num] = 0x54; break;
+            case 0x51:k[k_num] = 0x59; break;
+            case 0x53:k[k_num] = 0x55; break;
+            case 0x3c:k[k_num] = 0x41; break;
+            case 0x3e:k[k_num] = 0x53; break;
+            case 0x40:k[k_num] = 0x44; break;
+            case 0x41:k[k_num] = 0x46; break;
+            case 0x43:k[k_num] = 0x47; break;
+            case 0x45:k[k_num] = 0x48; break;
+            case 0x47:k[k_num] = 0x4A; break;
+            case 0x30:k[k_num] = 0x5A; break;
+            case 0x32:k[k_num] = 0x58; break;
+            case 0x34:k[k_num] = 0x43; break;
+            case 0x35:k[k_num] = 0x56; break;
+            case 0x37:k[k_num] = 0x42; break;
+            case 0x39:k[k_num] = 0x4E; break;
+            case 0x3b:k[k_num] = 0x4D; break;
             default:
                 k[k_num] = VK_SPACE;
                 break;
             }
             k_num++;
+            for (int i = 0; i < k_num; i++) {
+                input_d[i].ki.wVk = k[i];
+                input_u[i].ki.wVk = k[i];
+            }
             if (creatermode) cout << "按下: " << k;//.data();
             if (creatermode)cout << "\n__________________________" << endl;
             if (previous->down)previous->down_add(this);
             next->handle_again();
         }
         void play_() {
-            for (char t : k) {
-            keybd_event(t, 0, 0, 0);
-            keybd_event(t, 0, KEYEVENTF_KEYUP, 0);
+            /*for (char t : k) {
+                keybd_event(t, 0, 0, 0);
             }
+            for (char t : k) {
+                keybd_event(t, 0, KEYEVENTF_KEYUP, 0);
+            }*/
+            SendInput(k_num, &input_d[0], sizeof(INPUT));
+            Sleep(100);
+            SendInput(k_num, &input_u[0], sizeof(INPUT));
             next->play_();
         }
         play_down(play* previous_, int note_, Yingui* pare) {
@@ -206,8 +224,10 @@ public:
             //if (creatermode)cout << endl;
         }
         void down_add(play_down* pd) {
-            for (char c : pd->k) {
+            for (WORD c : pd->k) {
                 k[k_num]=c;
+                input_d[k_num].ki.wVk = k[k_num];
+                input_u[k_num].ki.wVk = k[k_num];
                 k_num++;
             }
             next = pd->next;
@@ -218,9 +238,9 @@ public:
     class play_up :public play {
     public:
         int note;
-        char k;
+        char k=' ';
         void handle_again() {
-            switch (note) {
+            /*switch (note) {
             case 0x48:k = 'Q'; break;
             case 0x4a:k = 'W'; break;
             case 0x4c:k = 'E'; break;
@@ -246,7 +266,7 @@ public:
                 k = VK_SPACE;
                 if (creatermode)cout << "无法映射" << note<<endl;
                 break;
-            }
+            }*/
             if (creatermode)cout << "松开: " << k;
             if (creatermode)cout << "\n__________________________" << endl;
             previous->next = next;
@@ -270,14 +290,14 @@ public:
     class play_stop :public play {
     public:
         int tick;
-        int time;
+        int time=-100;
         void handle_again() {
             time = static_cast<double>(tick) * tick_weimiao;
             if(creatermode)cout <<dec<< "微秒: " << time<<" | tick: ";
             if(creatermode)put_16(tick);
             if(creatermode)cout << "\n__________________________" << endl;
             parent->alltime += time;
-            if (time == 0)previous->next = next;
+            if (time == -100)previous->next = next;
             next->handle_again();
         }
         void play_() {
@@ -285,6 +305,7 @@ public:
             next->play_();
         }
         play_stop(play* previous_,int time_,Yingui* pare) {
+            time = 0;
             tick = time_;
             parent = pare;
             previous_->next = this;
