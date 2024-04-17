@@ -60,7 +60,7 @@ enum key {
 
 int head = 0;//文件头多长
 const string midi_head = "\x4d\x54\x68\x64";//文件头
-const string yingui_head = "\x4d\x54\x72\x6b";//文件头
+const string yingui_head = "\x4d\x54\x72\x6b";//音轨头
 const string midi_end = "\xff\x2f\x00";//音轨结尾
 const string midi_speed = "\xff\x51\x03";//速度事件开头
 const string midi_pai = "\xff\x58\x04";//拍子事件开头
@@ -109,6 +109,7 @@ public:
     public:
         Yingui* parent;
         play* next = nullptr;
+        play* previous = nullptr;
         virtual void handle_again() {
             next->handle_again();
         }
@@ -123,51 +124,62 @@ public:
     class play_down :public play {
     public:
         int note;
-        char k;
+        vector<char> k;
         void handle_again() {
             switch (note) {
-            case 0x48:k = 'Q'; break;
-            case 0x4a:k = 'W'; break;
-            case 0x4c:k = 'E'; break;
-            case 0x4d:k = 'R'; break;
-            case 0x4f:k = 'T'; break;
-            case 0x51:k = 'Y'; break;
-            case 0x53:k = 'U'; break;
-            case 0x3c:k = 'A'; break;
-            case 0x3e:k = 'S'; break;
-            case 0x40:k = 'D'; break;
-            case 0x41:k = 'F'; break;
-            case 0x43:k = 'G'; break;
-            case 0x45:k = 'H'; break;
-            case 0x47:k = 'J'; break;
-            case 0x30:k = 'Z'; break;
-            case 0x32:k = 'X'; break;
-            case 0x34:k = 'C'; break;
-            case 0x35:k = 'V'; break;
-            case 0x37:k = 'B'; break;
-            case 0x39:k = 'N'; break;
-            case 0x3b:k = 'M'; break;
+            case 0x48:k.push_back('Q'); break;
+            case 0x4a:k.push_back('W'); break;
+            case 0x4c:k.push_back('E'); break;
+            case 0x4d:k.push_back('R'); break;
+            case 0x4f:k.push_back('T'); break;
+            case 0x51:k.push_back('Y'); break;
+            case 0x53:k.push_back('U'); break;
+            case 0x3c:k.push_back('A'); break;
+            case 0x3e:k.push_back('S'); break;
+            case 0x40:k.push_back('D'); break;
+            case 0x41:k.push_back('F'); break;
+            case 0x43:k.push_back('G'); break;
+            case 0x45:k.push_back('H'); break;
+            case 0x47:k.push_back('J'); break;
+            case 0x30:k.push_back('Z'); break;
+            case 0x32:k.push_back('X'); break;
+            case 0x34:k.push_back('C'); break;
+            case 0x35:k.push_back('V'); break;
+            case 0x37:k.push_back('B'); break;
+            case 0x39:k.push_back('N'); break;
+            case 0x3b:k.push_back('M'); break;
             default:
-                k = VK_SPACE;
+                k.push_back(VK_SPACE);
                 break;
             }
-            if (creatermode) cout << "按下: " << k;
+            if (creatermode) cout << "按下: " << k.data();
             if (creatermode)cout << "\n__________________________" << endl;
             next->handle_again();
         }
         void play_() {
-            keybd_event(k, 0, 0, 0);
-            keybd_event(k, 0, KEYEVENTF_KEYUP, 0);
+            for (char t : k) {
+                keybd_event(t, 0, 0, 0);
+                keybd_event(t, 0, KEYEVENTF_KEYUP, 0);
+            }
             next->play_();
         }
-        play_down(play* previous, int note_, Yingui* pare) {
+        play_down(play* previous_, int note_, Yingui* pare) {
             note = note_;
-            previous->next = this;
+            previous_->next = this;
+            previous = previous_;
             parent = pare;
             if (creatermode)put_16(note);
-            if (creatermode)cout << endl;
+            //if (creatermode)cout << endl;
+        }
+        void add(play_down pd) {
+            for (char c : pd.k) {
+                k.push_back(c);
+            }
+            next = pd.next;
+            pd.next->previous = this;
         }
     };
+
     class play_up :public play {
     public:
         int note;
@@ -202,39 +214,45 @@ public:
             }
             if (creatermode)cout << "松开: " << k;
             if (creatermode)cout << "\n__________________________" << endl;
+            previous->next = next;
             next->handle_again();
         }
         void play_() {
             next->play_();
         }
-        play_up(play* previous, int note_,Yingui* pare) {
+        play_up(play* previous_, int note_,Yingui* pare) {
             note = note_;
             parent = pare;
-            previous->next = this;
+            previous_->next = this;
+            previous = previous_;
             //put_16(note);
             //cout << endl;
         }
     };
+    
+
     class play_stop :public play {
     public:
         int tick;
         int time;
         void handle_again() {
             time = static_cast<double>(tick) * tick_weimiao;
-            //cout <<dec<< "微秒: " << time<<" | tick: ";
-            //put_16(tick);
-            //cout << "\n__________________________" << endl;
+            if(creatermode)cout <<dec<< "微秒: " << time<<" | tick: ";
+            if(creatermode)put_16(tick);
+            if(creatermode)cout << "\n__________________________" << endl;
             parent->alltime += time;
+            //if (time == 0)previous->next = next;
             next->handle_again();
         }
         void play_() {
-            this_thread::sleep_for(chrono::microseconds(time));
+            if(time!=0)this_thread::sleep_for(chrono::microseconds(time));
             next->play_();
         }
-        play_stop(play* previous,int time_,Yingui* pare) {
+        play_stop(play* previous_,int time_,Yingui* pare) {
             tick = time_;
             parent = pare;
-            previous->next = this;
+            previous_->next = this;
+            previous = previous_;
             //put_16(tick);
             //cout << endl;
         }
@@ -248,8 +266,9 @@ public:
         void play_() {
             cout << "演奏结束"<<endl;
         }
-        play_end(play* previous,Yingui* pare) {
-            previous->next = this;
+        play_end(play* previous_,Yingui* pare) {
+            previous_->next = this;
+            previous = previous_;
             parent = pare;
         }
     };
@@ -397,7 +416,7 @@ public:
                 switch (c >> 4)
                 {
                 case 0x8: {//松开事件
-                    //cout << "松开";
+                    cout << "松开";
                     play_up* u=new play_up(last, stre.get(),this);//创建
                     last = u;//记录指令链最后一个
                     stre.ignore(1);//忽略力度符号
@@ -418,6 +437,7 @@ public:
                     temp_previous = event_::_Cx;
                     break;
                 case 0xf://f开头事件
+                    if (creatermode)cout << "\n__________________________" << endl;
                     if (creatermode)cout << "f开头事件 ";
                     if (c == FF) {
                         if (creatermode)cout << "元事件 ";
