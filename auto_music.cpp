@@ -107,9 +107,11 @@ public:
 
     class play {
     public:
+        bool down = false;
         Yingui* parent;
         play* next = nullptr;
         play* previous = nullptr;
+        //char k[7];
         virtual void handle_again() {
             next->handle_again();
         }
@@ -120,50 +122,82 @@ public:
             }
             next->play_();
         }
+        virtual void down_add(play_down* pd);
     };
     class play_down :public play {
     public:
         int note;
-        vector<char> k;
+        //vector<char> k;
+        //char k;
+        char k[7];
+        int k_num = 0;
         void handle_again() {
             switch (note) {
-            case 0x48:k.push_back('Q'); break;
-            case 0x4a:k.push_back('W'); break;
-            case 0x4c:k.push_back('E'); break;
-            case 0x4d:k.push_back('R'); break;
-            case 0x4f:k.push_back('T'); break;
-            case 0x51:k.push_back('Y'); break;
-            case 0x53:k.push_back('U'); break;
-            case 0x3c:k.push_back('A'); break;
-            case 0x3e:k.push_back('S'); break;
-            case 0x40:k.push_back('D'); break;
-            case 0x41:k.push_back('F'); break;
-            case 0x43:k.push_back('G'); break;
-            case 0x45:k.push_back('H'); break;
-            case 0x47:k.push_back('J'); break;
-            case 0x30:k.push_back('Z'); break;
-            case 0x32:k.push_back('X'); break;
-            case 0x34:k.push_back('C'); break;
-            case 0x35:k.push_back('V'); break;
-            case 0x37:k.push_back('B'); break;
-            case 0x39:k.push_back('N'); break;
-            case 0x3b:k.push_back('M'); break;
+                /*case 0x48:k.push_back('Q'); break;
+                case 0x4a:k.push_back('W'); break;
+                case 0x4c:k.push_back('E'); break;
+                case 0x4d:k.push_back('R'); break;
+                case 0x4f:k.push_back('T'); break;
+                case 0x51:k.push_back('Y'); break;
+                case 0x53:k.push_back('U'); break;
+                case 0x3c:k.push_back('A'); break;
+                case 0x3e:k.push_back('S'); break;
+                case 0x40:k.push_back('D'); break;
+                case 0x41:k.push_back('F'); break;
+                case 0x43:k.push_back('G'); break;
+                case 0x45:k.push_back('H'); break;
+                case 0x47:k.push_back('J'); break;
+                case 0x30:k.push_back('Z'); break;
+                case 0x32:k.push_back('X'); break;
+                case 0x34:k.push_back('C'); break;
+                case 0x35:k.push_back('V'); break;
+                case 0x37:k.push_back('B'); break;
+                case 0x39:k.push_back('N'); break;
+                case 0x3b:k.push_back('M'); break;
+                default:
+                    k.push_back(VK_SPACE);
+                    break;
+                }*/
+            case 0x48:k[k_num] = 'Q'; break;
+            case 0x4a:k[k_num] = 'W'; break;
+            case 0x4c:k[k_num] = 'E'; break;
+            case 0x4d:k[k_num] = 'R'; break;
+            case 0x4f:k[k_num] = 'T'; break;
+            case 0x51:k[k_num] = 'Y'; break;
+            case 0x53:k[k_num] = 'U'; break;
+            case 0x3c:k[k_num] = 'A'; break;
+            case 0x3e:k[k_num] = 'S'; break;
+            case 0x40:k[k_num] = 'D'; break;
+            case 0x41:k[k_num] = 'F'; break;
+            case 0x43:k[k_num] = 'G'; break;
+            case 0x45:k[k_num] = 'H'; break;
+            case 0x47:k[k_num] = 'J'; break;
+            case 0x30:k[k_num] = 'Z'; break;
+            case 0x32:k[k_num] = 'X'; break;
+            case 0x34:k[k_num] = 'C'; break;
+            case 0x35:k[k_num] = 'V'; break;
+            case 0x37:k[k_num] = 'B'; break;
+            case 0x39:k[k_num] = 'N'; break;
+            case 0x3b:k[k_num] = 'M'; break;
             default:
-                k.push_back(VK_SPACE);
+                k[k_num] = VK_SPACE;
                 break;
             }
-            if (creatermode) cout << "按下: " << k.data();
+            k_num++;
+            if (creatermode) cout << "按下: " << k;//.data();
             if (creatermode)cout << "\n__________________________" << endl;
+            if (previous->down)previous->down_add(this);
             next->handle_again();
         }
         void play_() {
             for (char t : k) {
-                keybd_event(t, 0, 0, 0);
-                keybd_event(t, 0, KEYEVENTF_KEYUP, 0);
+            keybd_event(t, 0, 0, 0);
+            keybd_event(t, 0, KEYEVENTF_KEYUP, 0);
             }
             next->play_();
         }
         play_down(play* previous_, int note_, Yingui* pare) {
+            down = true;
             note = note_;
             previous_->next = this;
             previous = previous_;
@@ -171,12 +205,13 @@ public:
             if (creatermode)put_16(note);
             //if (creatermode)cout << endl;
         }
-        void add(play_down pd) {
-            for (char c : pd.k) {
-                k.push_back(c);
+        void down_add(play_down* pd) {
+            for (char c : pd->k) {
+                k[k_num]=c;
+                k_num++;
             }
-            next = pd.next;
-            pd.next->previous = this;
+            next = pd->next;
+            pd->next->previous = this;
         }
     };
 
@@ -225,6 +260,7 @@ public:
             parent = pare;
             previous_->next = this;
             previous = previous_;
+            
             //put_16(note);
             //cout << endl;
         }
@@ -241,7 +277,7 @@ public:
             if(creatermode)put_16(tick);
             if(creatermode)cout << "\n__________________________" << endl;
             parent->alltime += time;
-            //if (time == 0)previous->next = next;
+            if (time == 0)previous->next = next;
             next->handle_again();
         }
         void play_() {
@@ -416,7 +452,7 @@ public:
                 switch (c >> 4)
                 {
                 case 0x8: {//松开事件
-                    cout << "松开";
+                    if(creatermode)cout << "松开";
                     play_up* u=new play_up(last, stre.get(),this);//创建
                     last = u;//记录指令链最后一个
                     stre.ignore(1);//忽略力度符号
