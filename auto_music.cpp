@@ -139,7 +139,13 @@ public:
         void handle_again() {
             for (int i = 0; i < 7; i++) {
                 input_d[i].type = INPUT_KEYBOARD;
-                input_u[i].type = KEYEVENTF_KEYUP;
+                input_d[i].ki.wScan = 0;
+                input_d[i].ki.dwFlags = 0;
+                input_d[i].ki.dwExtraInfo = 0;
+                input_u[i].type = INPUT_KEYBOARD;
+                input_u[i].ki.wScan = 0;
+                input_u[i].ki.dwFlags = KEYEVENTF_KEYUP;
+                input_u[i].ki.dwExtraInfo = 0;
             }
             switch (note) {
                 /*case 0x48:k.push_back('Q'); break;
@@ -192,11 +198,10 @@ public:
                 k[k_num] = VK_SPACE;
                 break;
             }
-            k_num++;
-            for (int i = 0; i < k_num; i++) {
-                input_d[i].ki.wVk = k[i];
-                input_u[i].ki.wVk = k[i];
-            }
+            k_num = 1;
+            input_d[0].ki.wVk = k[0];
+            input_u[0].ki.wVk = k[0];
+
             if (creatermode) cout << "按下: " << k;//.data();
             if (creatermode)cout << "\n__________________________" << endl;
             if (previous->down)previous->down_add(this);
@@ -209,8 +214,10 @@ public:
             for (char t : k) {
                 keybd_event(t, 0, KEYEVENTF_KEYUP, 0);
             }*/
+            /*for (INPUT k : input_d) {
+                cout << k.ki.wVk << endl;
+            }*/
             SendInput(k_num, &input_d[0], sizeof(INPUT));
-            Sleep(100);
             SendInput(k_num, &input_u[0], sizeof(INPUT));
             next->play_();
         }
@@ -224,12 +231,12 @@ public:
             //if (creatermode)cout << endl;
         }
         void down_add(play_down* pd) {
-            for (WORD c : pd->k) {
-                k[k_num]=c;
-                input_d[k_num].ki.wVk = k[k_num];
-                input_u[k_num].ki.wVk = k[k_num];
-                k_num++;
-            }
+            k[k_num] = pd->k[0];
+            input_d[k_num].ki.wVk = k[k_num];
+            input_u[k_num].ki.wVk = k[k_num];
+            k_num += 1;
+            if(creatermode)cout << k_num << endl;
+
             next = pd->next;
             pd->next->previous = this;
         }
@@ -290,21 +297,24 @@ public:
     class play_stop :public play {
     public:
         int tick;
-        int time=-100;
+        int time = 0;
         void handle_again() {
             time = static_cast<double>(tick) * tick_weimiao;
-            if(creatermode)cout <<dec<< "微秒: " << time<<" | tick: ";
-            if(creatermode)put_16(tick);
-            if(creatermode)cout << "\n__________________________" << endl;
+            if (creatermode)cout << dec << "微秒: " << time << " | tick: ";
+            if (creatermode)put_16(tick);
+            if (creatermode)cout << "\n__________________________" << endl;
             parent->alltime += time;
-            if (time == -100)previous->next = next;
+            if (time == 0) {
+                previous->next = next;
+                next->previous = previous;
+            }
             next->handle_again();
         }
         void play_() {
-            if(time!=0)this_thread::sleep_for(chrono::microseconds(time));
+            this_thread::sleep_for(chrono::microseconds(time));
             next->play_();
         }
-        play_stop(play* previous_,int time_,Yingui* pare) {
+        play_stop(play* previous_, int time_, Yingui* pare) {
             time = 0;
             tick = time_;
             parent = pare;
@@ -687,7 +697,7 @@ void startplay() {
     }
 
     cout << "时长（ms）: " << dec << maxtime << endl;
-    this_thread::sleep_for(chrono::microseconds(maxtime + 5000000));
+    this_thread::sleep_for(chrono::microseconds(maxtime + 10000000));
 }
 //开始演奏
 
