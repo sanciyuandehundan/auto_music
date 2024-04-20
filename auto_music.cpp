@@ -84,7 +84,7 @@ vector<thread> threads;//播放执行绪
 mutex mtx;//互斥锁
 condition_variable cv;
 bool thread_start = false;
-bool creatermode = false;//开发者模式
+bool creatermode = true;//开发者模式
 int* choice = new int[yingui_num];//选择哪几个
 int choice_num = -999;//选择几个
 int maxtime = 0;
@@ -202,7 +202,7 @@ public:
             input_d[0].ki.wVk = k[0];
             input_u[0].ki.wVk = k[0];
 
-            if (creatermode) cout << "按下: " << k;//.data();
+            if (creatermode) cout << "按下: " << k[0] << '|' << k[1] << '|' << k[2] << '|' << k[3] << '|' << k[4] << '|' << k[5] << '|' << k[6] << '|';//.data();
             if (creatermode)cout << "\n__________________________" << endl;
             if (previous->down)previous->down_add(this);
             next->handle_again();
@@ -274,8 +274,8 @@ public:
                 if (creatermode)cout << "无法映射" << note<<endl;
                 break;
             }*/
-            if (creatermode)cout << "松开: " << k;
-            if (creatermode)cout << "\n__________________________" << endl;
+            //if (creatermode)cout << "松开: " << k;
+            //if (creatermode)cout << "\n__________________________" << endl;
             previous->next = next;
             next->handle_again();
         }
@@ -483,7 +483,7 @@ public:
                 switch (c >> 4)
                 {
                 case 0x8: {//松开事件
-                    if(creatermode)cout << "松开";
+                    //if(creatermode)cout << "松开";
                     play_up* u=new play_up(last, stre.get(),this);//创建
                     last = u;//记录指令链最后一个
                     stre.ignore(1);//忽略力度符号
