@@ -15,9 +15,11 @@
 #include <cmath>
 #include <mutex>
 #include <condition_variable>
+#include <direct.h>
 using namespace std;
 
-void read(string path);
+class txttomid;
+void read_mid(string path);
 void parse();
 vector<string> split(const string& data, const string& anchor);
 void put_16(unsigned char &c);
@@ -84,11 +86,280 @@ vector<thread> threads;//播放执行绪
 mutex mtx;//互斥锁
 condition_variable cv;
 bool thread_start = false;
-bool creatermode = false;//开发者模式
+bool creatermode = true;//开发者模式
 int* choice = new int[yingui_num];//选择哪几个
 int choice_num = -999;//选择几个
+vector<unsigned char> temp_key;
 int maxtime = 0;
 //全局变量
+
+class txttomid {
+public:
+    struct note {
+        //txttomid* parent;
+    private:
+        const static int timebase = 1920;//一分音符几tick
+    public:
+        bool timeevent = false;
+        int time = 0;
+        int endtimeadd = 0;
+        note* previous = nullptr;
+        note* next = nullptr;
+        int num = 0;
+        unsigned char key[7] = { 0 };
+        note(vector<unsigned char> key_) {
+            //parent = pa;
+            for (int i = 0; i < key_.size(); i++) {
+                key[i] = key_[i];
+            }
+            num = key_.size();
+            temp_key.clear();
+
+            if (key_[0] != 0x1) {
+                if (timeevent)cout << "time";
+                if(creatermode)cout << "num: " << num << '|';
+                for (int i = 0; i < num; i++) {
+                    if (creatermode)cout << hex << unsigned int(key_[i]) << ' ';
+                }
+                if (creatermode)cout << endl;
+            }
+            else {
+                if (creatermode)cout << "creattime" << endl;
+                timeevent = true;
+            }
+        }
+        void timeset(int t) {
+            time = timebase / t;
+        }
+        void timeadd(note* n) {
+            endtimeadd += n->time;
+        }
+        void nextset(note* ne) {
+            if (!ne->timeevent) {
+                next = ne;
+                ne->previous = this;
+            }
+            else {
+                timeadd(ne);
+            }
+        }
+        void push(vector<unsigned char>* yg) {
+            /*if (timeevent)cout << "time";
+            for (int i = 0; i < num; i++) {
+                cout <<hex<< unsigned int(key[i]) << ' ';
+            }
+            cout << endl;*/
+            for (int i = 0; i < num; i++) {
+                yg->push_back(0x90);
+                yg->push_back(key[i]);
+                yg->push_back(0x50);
+                if (i != num - 1)yg->push_back(0x0);
+            }
+            int tq = time * 0.9;
+            if (tq > 0b111111111111111111111) {
+                yg->push_back(0b10000000 + (((tq >> 21)) & 0b01111111));
+            }
+            if (tq > 0b11111111111111) {
+                yg->push_back(0b10000000 + (((tq >> 14)) & 0b01111111));
+            }
+            if (tq > 0b1111111) {
+                yg->push_back(0b10000000 + (((tq >> 7)) & 0b01111111));
+            }
+            yg->push_back(tq & 0b01111111);
+            //yg->push_back(0x83);
+            //yg->push_back(0x30);
+            for (int i = 0; i < num; i++) {
+                yg->push_back(0x80);
+                yg->push_back(key[i]);
+                yg->push_back(0x0);
+                if (i != num - 1)yg->push_back(0x0);
+            }
+            tq = time - tq + endtimeadd;
+            if (tq > 0b111111111111111111111) {
+                yg->push_back(0b10000000 + (((tq >> 21)) & 0b01111111));
+            }
+            if (tq > 0b11111111111111) {
+                yg->push_back(0b10000000 + (((tq >> 14)) & 0b01111111));
+            }
+            if (tq > 0b1111111) {
+                yg->push_back(0b10000000 + (((tq >> 7)) & 0b01111111));
+            }
+            yg->push_back(tq & 0b01111111);
+            //yg->push_back(0x30);
+        }
+    };
+    string all;
+    string file_name;
+    vector<unsigned char> yingui;
+    note* nstart = nullptr;
+    note* nend = nullptr;
+    vector<note*> temp_note;
+    unsigned int bpm = 120;
+
+    void read_txt(string path)
+    {
+        ifstream file(path, std::ios::binary); // 打开 MIDI 文件
+
+        file_name = path.substr(path.find_last_of("\\") + 1);//去除父文件夹路径
+        file_name = file_name.substr(0, file_name.find_last_of("."));//去除文件扩展名
+        //file >> noskipws;
+
+        char byte; // 用于存储每个字节的临时变量
+        if (file.is_open()) { // 检查文件是否成功打开
+            while (file.read(&byte, sizeof(char))) { // 逐字节读取文件内容
+                if (byte != '\n' && byte != '\r') {
+                    all += byte;
+                }
+            }
+            file.close(); // 关闭文件
+            printf("\n%s读取成功！\n__________________________\n", file_name.c_str());
+        }
+        else {
+            printf("__________________________\n无法打开%s文件,请检查路径是否正确\n", file_name.c_str()); // 如果无法打开文件则输出错误信息
+        }
+        if (creatermode)cout << all << endl;
+    }
+
+    /*void push(note* n) {
+
+        for (int i = 0; i < temp_key.size(); i++) {
+            yingui.push_back(0x90);
+            yingui.push_back(temp_key[i]);
+            yingui.push_back(0x50);
+            if (i != temp_key.size() - 1)yingui.push_back(0x0);
+        }
+        yingui.push_back(0x83);
+        yingui.push_back(0x30);
+        for (int i = 0; i < temp_key.size(); i++) {
+            yingui.push_back(0x80);
+            yingui.push_back(temp_key[i]);
+            yingui.push_back(0x0);
+            if (i != temp_key.size() - 1)yingui.push_back(0x0);
+        }
+        yingui.push_back(0x30);
+        temp_key.clear();
+    }*/
+
+    int transform()
+    {
+
+        string path;
+        cout << "文件路径: ";
+        cin >> path;
+        cout << "bpm: ";
+        cin >> bpm;
+        bpm *= 4;
+        read_txt(path);
+        ofstream file((file_name + ".mid"), std::ios::binary);
+
+        // 检查文件是否成功打开
+        if (!file.is_open()) {
+            std::cerr << "无法打开文件：" << file_name << endl;
+            return 1;
+        }
+
+        vector<unsigned int> yushuru = { 0x4d,0x54,0x68,0x64,0x0,0x0,0x0,0x6,0x0,0x01,0x0,0x2,
+            (bpm >> 8) & 0b11111111,bpm & 0b11111111,0x4d ,0x54 ,0x72 ,0x6b ,0x0 ,0x0 ,0x0 ,0xb ,0x0 ,0xff,0x51,0x03,0x07,0x81,0x1b,0x0,0xff ,0x2f ,0x0 ,
+            0x4d ,0x54 ,0x72 ,0x6b };
+
+        for (int i : yushuru) {
+            file << char(i);
+        }
+
+        yingui.push_back(0x0);
+        yingui.push_back(0xc0);
+        yingui.push_back(0x0);
+        yingui.push_back(0x0);
+        bool input_key = true;
+        bool input_note = true;
+        for (char c : all) {
+            if (creatermode)cout << dec << "c: " << c << '|' << int(c) << endl;
+            switch (c) {
+            case 'Q': temp_key.push_back(0x48); break;
+            case 'W': temp_key.push_back(0x4a); break;
+            case 'E': temp_key.push_back(0x4c); break;
+            case 'R': temp_key.push_back(0x4d); break;
+            case 'T': temp_key.push_back(0x4f); break;
+            case 'Y': temp_key.push_back(0x51); break;
+            case 'U': temp_key.push_back(0x53); break;
+            case 'A': temp_key.push_back(0x3c); break;
+            case 'S': temp_key.push_back(0x3e); break;
+            case 'D': temp_key.push_back(0x40); break;
+            case 'F': temp_key.push_back(0x41); break;
+            case 'G': temp_key.push_back(0x43); break;
+            case 'H': temp_key.push_back(0x45); break;
+            case 'J': temp_key.push_back(0x47); break;
+            case 'Z': temp_key.push_back(0x30); break;
+            case 'X': temp_key.push_back(0x32); break;
+            case 'C': temp_key.push_back(0x34); break;
+            case 'V': temp_key.push_back(0x35); break;//kk
+            case 'B': temp_key.push_back(0x37); break;
+            case 'N': temp_key.push_back(0x39); break;
+            case 'M': temp_key.push_back(0x3b); break;//kk
+            case '(':
+                input_key = false;
+                break;
+            case ')':
+                input_key = true;
+                break;
+            case'/':
+                for (note* n : temp_note) {
+                    n->timeset(4 * temp_note.size());
+                    if (nstart == nullptr) {
+                        nstart = n;
+                        nend = n;
+                    }
+                    else {
+                        nend->nextset(n);
+                        if (!n->timeevent) {
+                            nend = n;
+                        }
+                    }
+                }
+                temp_note.clear();
+                break;
+            case ' ':
+                temp_key.push_back(0x1);
+                break;
+            default:
+                if (creatermode)cout << "error: " << c << endl;
+                break;
+            }
+            if (input_key && temp_key.size() != 0) {
+                //cout << "test1"<<endl;
+                temp_note.push_back(new note(temp_key));
+                //cout << "test2" << endl;
+            }
+            //push(input);
+        }
+
+        note* t = nstart;
+
+        while (t != nullptr) {
+            t->push(&yingui);
+            t = t->next;
+        }
+
+        yingui.push_back(0xff);
+        yingui.push_back(0x2f);
+        yingui.push_back(0x0);
+
+        file << char((yingui.size() >> 24) & 0b11111111);
+        file << char((yingui.size() >> 16) & 0b11111111);
+        file << char((yingui.size() >> 8) & 0b11111111);
+        file << char(yingui.size() & 0b11111111);
+
+        for (int i : yingui)
+        {
+            file << char(i);
+            if (creatermode)cout << hex << i << " ";
+        }
+        file.close();
+        cout << "\n长度： " << yingui.size() << endl;
+        cout << file_name << "创建完成";
+    }
+
+};
 
 class Yingui {
 public:
@@ -205,6 +476,7 @@ public:
             if (creatermode) cout << "按下: " << k;//.data();
             if (creatermode)cout << "\n__________________________" << endl;
             if (previous->down)previous->down_add(this);
+            //DELETE &k;
             next->handle_again();
         }
         void play_() {
@@ -610,12 +882,28 @@ int main() {
 
 void choice_file() {
     allclear();
-
-    cout << "__________________________\n这里是原琴脚本\nBiliBili搜索三次元的混蛋,你将什么都搜不到,因为我还没上传\nGithub搜索sanciyuandehundan,你也搜不到代码,因为我没公开我的库\n(<ゝω0)☆哎嘿\n";
-    cout << "请输入适配原琴的midi档完整路径: ";
+    txttomid tt;
     string s;
-    cin >> s;
-    read(s);
+    int kk=-999;
+    cout << "__________________________\n这里是原琴脚本\nBiliBili搜索三次元的混蛋,你将什么都搜不到,因为我还没上传\nGithub搜索sanciyuandehundan,你也搜不到代码,因为我没公开我的库\n(<ゝω0)☆哎嘿\n";
+    //cout << "__________________________\n要传入哪种文件\n1—键盘谱\n2—midi档案\n";
+    do {
+        cin.clear();
+        cout << "__________________________\n要传入哪种文件\n1—键盘谱\n2—midi档案\n输入代码: ";
+        cin >> kk;
+    } while (kk != 1 && kk != 2);
+    if (kk == 1) {
+        tt.transform();
+        s = _getcwd(NULL,0);
+        s += '\\';
+        s += tt.file_name;
+        s += ".mid";
+    }
+    else {
+        cout << "请输入适配原琴的midi档完整路径: ";
+        cin >> s;
+    }
+    read_mid(s);
     //read("C:\\Users\\a0905\\Downloads\\spiral.mid");
 //read("C:\\Users\\a0905\\Downloads\\「spiral」- 无职转生S2 OP-V1.mid");
 //read("C:\\Users\\a0905\\Downloads\\mid (6).mid");
@@ -697,11 +985,11 @@ void startplay() {
     }
 
     cout << "时长（ms）: " << dec << maxtime << endl;
-    this_thread::sleep_for(chrono::microseconds(maxtime + 10000000));
+    this_thread::sleep_for(chrono::microseconds(maxtime + 20000000));
 }
 //开始演奏
 
-void read(string path) 
+void read_mid(string path) 
 {
     ifstream file(path, std::ios::binary); // 打开 MIDI 文件
     
